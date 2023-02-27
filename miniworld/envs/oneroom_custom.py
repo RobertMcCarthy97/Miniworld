@@ -9,6 +9,7 @@ from minigrid.envs.babyai.goto_custom import GoalObj, ObjectGoalController
 from gymnasium.core import ObservationWrapper
 import numpy as np
 import math
+import matplotlib.pyplot as plt
 
 
 class OneRoomCustom(MiniWorldEnv, utils.EzPickle):
@@ -70,7 +71,7 @@ class OneRoomCustom(MiniWorldEnv, utils.EzPickle):
         
         
     def create_goal_space(self):
-        self.rew_dist_thresh = 2
+        self.rew_dist_thresh = max(1.5, 1.5 * self.max_forward_step)
         self.max_dist_to_goal = np.sqrt(2 * (self.size - 2)**2)
         self.coord_goal_space = spaces.Box(low=np.array([1, 1]), high=np.array([self.size-1, self.size-1]), dtype=np.int64)
         # TODO: fix this as bounds may be too tight/small
@@ -78,8 +79,8 @@ class OneRoomCustom(MiniWorldEnv, utils.EzPickle):
     def _gen_world(self):
         self.add_rect_room(min_x=0, max_x=self.size, min_z=0, max_z=self.size)
 
-        self.place_agent()
-        print("\nCHECK set same agent pos each time\n")
+        mid_pos = int(self.size/2)
+        self.place_agent(room=None, dir=None, min_x=mid_pos, max_x=mid_pos, min_z=mid_pos, max_z=mid_pos)
         
         self.init_rollout_objects()
         
@@ -109,6 +110,7 @@ class OneRoomCustom(MiniWorldEnv, utils.EzPickle):
                     "blue box": GoalObj("blue", "box", (self.indent_far, self.indent)),
                     "red key": GoalObj("red", "key", (self.indent, self.indent))
                     }
+        object_dict["empty"] = GoalObj("empty", "empty", (int(self.size/2), int(self.size/2)))
         # set init goal
         init_goal = "green ball"
         eval_goals = [
@@ -136,7 +138,7 @@ class OneRoomCustom(MiniWorldEnv, utils.EzPickle):
                 assert False
             # add object to env
             pos = (goal_obj.position[0], 0.8, goal_obj.position[1])
-            self.place_entity(miniworld_obj, pos=pos)
+            self.place_entity(miniworld_obj, pos=pos, dir=3*math.pi/4)
             goal_obj.assign_minigrid_object(miniworld_obj)
         
         # iterate through objects    
@@ -154,13 +156,37 @@ class OneRoomCustom(MiniWorldEnv, utils.EzPickle):
     def set_to_eval_mode(self):
         self.goal_controller.set_mode('eval')
     
-    def init_dir_markers(self):
-        assert False
-        self.dir_markers = [">", "v", "<", "^"]
+    def get_dir_marker(self, radian):
+        return (3, 0, radian * 360/ (2*math.pi))
         
     def plot_rollout(self, observations):
         # TODO: add pos to info, and use infos...
-        assert False
+        assert len(observations.shape) == 2
+        assert observations.shape[1] == 3
+        # print(observations.shape)
+        
+        fig = plt.figure()
+        plt.xlim(0, self.size)
+        plt.ylim(-self.size, 0)
+        
+        for key, obj in self.goal_controller.object_dict.items():
+            if key != "empty":
+                i, j = obj.position[0], obj.position[1]
+                color = obj.color
+                plt.plot([i], [-j], marker="o", markersize=20, markerfacecolor=color)
+
+        traj_x = observations[:, 1]
+        traj_y = - observations[:, 2] # Note the minus!!
+        time_step = - np.arange(observations.shape[0])
+        
+        plt.plot(traj_x, traj_y)
+        plt.scatter(traj_x, traj_y, c=time_step, cmap='gray')
+        
+        # def get_dir_marker() # TODO
+        end_dir = int(np.rint(observations[-1, 0]))
+        plt.scatter([traj_x[-1]], [traj_y[-1]], marker=self.get_dir_marker(end_dir), s=150, color='red')
+        
+        return fig
 
 
 class OneRoomS6Custom(OneRoomCustom):
@@ -198,7 +224,7 @@ class CustomMiniworldDictObsWrapper(ObservationWrapper):
         self.obs_space_dict = {}
         
         # [direction (radians), pos[0], pos[1]]
-        state_space = spaces.Box(low=np.array([0, 1, 1]), high=np.array([2*math.pi, env.size-1, env.size-1]), dtype=np.int64)
+        state_space = spaces.Box(low=np.array([0, 1, 1]), high=np.array([2*math.pi, env.size-1, env.size-1]), dtype=np.int64) # TODO: verify radians high
         self.obs_space_dict['state'] = state_space
 
         # Images
@@ -219,7 +245,8 @@ class CustomMiniworldDictObsWrapper(ObservationWrapper):
         # States
         assert len(self.agent.pos) == 3
         assert self.agent.pos[1] == 0.0
-        obs_dict['state'] = np.array([self.agent.dir, self.agent.pos[0], self.agent.pos[2]])
+        agent_dir = self.agent.dir % (2 * math.pi)
+        obs_dict['state'] = np.array([agent_dir, self.agent.pos[0], self.agent.pos[2]])
         
         # Image
         if self.include_image:
