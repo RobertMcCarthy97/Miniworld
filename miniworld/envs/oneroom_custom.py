@@ -51,7 +51,7 @@ class OneRoomCustom(MiniWorldEnv, utils.EzPickle):
 
     """
 
-    def __init__(self, size=10, max_episode_steps=180, **kwargs):
+    def __init__(self, size=10, max_episode_steps=180, obs_width=160, obs_height=120, **kwargs):
         assert size >= 2
         self.size = size
         self.max_steps = max_episode_steps
@@ -59,27 +59,48 @@ class OneRoomCustom(MiniWorldEnv, utils.EzPickle):
         # Init objects
         self.init_objects()
 
-        MiniWorldEnv.__init__(self, max_episode_steps=max_episode_steps, **kwargs)
+        MiniWorldEnv.__init__(self, max_episode_steps=max_episode_steps, obs_width=obs_width, obs_height=obs_height, **kwargs)
         utils.EzPickle.__init__(
             self, size=size, max_episode_steps=max_episode_steps, **kwargs
         )
 
-        # Allow only movement actions (left/right/forward)
-        self.action_space = spaces.Discrete(self.actions.move_forward + 1)
+        # Allow only movement actions (left/right/forward/backwards)
+        self.action_space = spaces.Discrete(4)
         # goal space
         self.create_goal_space()
         
+    def get_goal_images(self):
+        self.reset()
+        for key, obj in self.goal_controller.object_dict.items():
+            assert obj.agent_view is not None
+            self.agent.pos = obj.agent_view['pos']
+            self.agent.dir = obj.agent_view['dir']
+            # WARNING:
+            # TODO: This is super dodgy - if change how env is rendered, then this is not updated...
+            rgb_img_partial = self.render_obs()
+            rgb_img_partial = np.moveaxis(rgb_img_partial, -1, 0)
+            # set image
+            obj.set_goal_image(rgb_img_partial)
+        #     # visualize
+        #     from minigrid.utils.window import Window
+        #     window = Window("minigrid")
+        #     window.show(block=False)
+        #     window.show_img(np.moveaxis(rgb_img_partial, 0, 2))
+        #     plt.title(obj.get_string_description())
+        # import pdb; pdb.set_trace()
         
     def create_goal_space(self):
         self.rew_dist_thresh = max(1.5, 1.5 * self.max_forward_step)
         self.max_dist_to_goal = np.sqrt(2 * (self.size - 2)**2)
         self.coord_goal_space = spaces.Box(low=np.array([1, 1]), high=np.array([self.size-1, self.size-1]), dtype=np.int64)
         # TODO: fix this as bounds may be too tight/small
+        self.env_rows = self.size # self.num_rows * (self.room_size-1)
+        self.env_cols = self.size # self.num_cols * (self.room_size-1)
 
     def _gen_world(self):
         self.add_rect_room(min_x=0, max_x=self.size, min_z=0, max_z=self.size)
 
-        mid_pos = int(self.size/2)
+        mid_pos = round(self.size/2)
         self.place_agent(room=None, dir=None, min_x=mid_pos, max_x=mid_pos, min_z=mid_pos, max_z=mid_pos)
         
         self.init_rollout_objects()
@@ -88,6 +109,7 @@ class OneRoomCustom(MiniWorldEnv, utils.EzPickle):
         self.goal_controller.verify_object_dict()
 
     def step(self, action):
+        assert self.action_space.contains(action)
         obs, reward, termination, truncation, info = super().step(action)
 
         if self.near(self.goal_object):
@@ -105,12 +127,12 @@ class OneRoomCustom(MiniWorldEnv, utils.EzPickle):
         self.indent_far = self.size - self.indent
         # store list
         object_dict = {
-                    "green ball": GoalObj("green", "ball", (self.indent, self.indent_far)),
-                    "yellow key": GoalObj("yellow", "key", (self.indent_far, self.indent_far)),
-                    "blue box": GoalObj("blue", "box", (self.indent_far, self.indent)),
-                    "red key": GoalObj("red", "key", (self.indent, self.indent))
+                    "green ball": GoalObj("green", "ball", (self.indent, self.indent_far), {'pos': (2.5, 0.0, 7.64), 'dir': 3.76}),
+                    "yellow key": GoalObj("yellow", "key", (self.indent_far, self.indent_far), {'pos': (7.34, 0.0, 7.47), 'dir': 5.56}),
+                    "blue box": GoalObj("blue", "box", (self.indent_far, self.indent), {'pos': (7.43, 0.0, 2.47), 'dir': 0.87}),
+                    "red key": GoalObj("red", "key", (self.indent, self.indent), {'pos': (2.34, 0.0, 2.36), 'dir': 2.42})
                     }
-        object_dict["empty"] = GoalObj("empty", "empty", (int(self.size/2), int(self.size/2)))
+        object_dict["empty"] = GoalObj("empty", "empty", (int(self.size/2), int(self.size/2)), {'pos': (int(self.size/2), 0.0, int(self.size/2)), 'dir': 0})
         # set init goal
         init_goal = "green ball"
         eval_goals = [
@@ -190,7 +212,7 @@ class OneRoomCustom(MiniWorldEnv, utils.EzPickle):
 
 
 class OneRoomS6Custom(OneRoomCustom):
-    def __init__(self, size=6, max_episode_steps=100, **kwargs):
+    def __init__(self, size=10, max_episode_steps=100, **kwargs):
         super().__init__(size=size, max_episode_steps=max_episode_steps, **kwargs)
 
 
@@ -202,13 +224,14 @@ default_params.set("turn_step", 45)
 
 class OneRoomS6FastCustom(OneRoomS6Custom):
     def __init__(
-        self, max_episode_steps=50, size=6, params=default_params, domain_rand=False, **kwargs
+        self, max_episode_steps=50, size=10, params=default_params, domain_rand=False, **kwargs
     ):
 
         super().__init__(
             max_episode_steps=max_episode_steps,
             params=params,
             domain_rand=domain_rand,
+            size=size,
             **kwargs
         )
         
@@ -256,6 +279,6 @@ class CustomMiniworldDictObsWrapper(ObservationWrapper):
                 img = self.render_top_view()
             obs_dict['image'] = np.moveaxis(img, -1, 0)
                 
-            assert obs_dict['image'].shape == self.obs_space_dict['image'].shape
+            assert obs_dict['image'].shape == self.observation_space['image'].shape
 
         return obs_dict
