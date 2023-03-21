@@ -17,6 +17,7 @@ class CustomMiniWorldEnv(MiniWorldEnv, utils.EzPickle):
         assert size >= 2
         self.size = size # TODO: this size variable is confusing...
         self.max_steps = max_episode_steps
+        self.custom_env_type = "miniworld" # undo
         
         # Init objects
         self.init_objects()
@@ -55,9 +56,9 @@ class CustomMiniWorldEnv(MiniWorldEnv, utils.EzPickle):
         assert self.action_space.contains(action)
         obs, reward, termination, truncation, info = super().step(action)
 
-        if self.near(self.goal_object):
-            reward += self._reward()
-            termination = True
+        # if self.near(self.goal_object):
+        #     reward += self._reward()
+        #     termination = True
 
         return obs, reward, termination, truncation, info
     
@@ -120,7 +121,7 @@ class CustomMiniWorldEnv(MiniWorldEnv, utils.EzPickle):
         for key, obj in self.goal_controller.object_dict.items():
             if key != "empty":
                 i, j = obj.position[0], obj.position[1]
-                color = obj.color
+                color = obj.plot_color
                 plt.plot([i], [-j], marker="o", markersize=20, markerfacecolor=color)
 
         traj_x = observations[:, 1]
@@ -196,7 +197,7 @@ class OneRoomCustom(CustomMiniWorldEnv):
         
         self.init_rollout_objects()
         
-        self.goal_object = self.goal_controller.get_init_goal().minigrid_object # TODO: this is bad
+        # self.goal_object = self.goal_controller.get_init_goal().minigrid_object # TODO: this is bad
         self.goal_controller.verify_object_dict()
     
     def get_init_object_info(self):
@@ -262,11 +263,11 @@ class FourRoomsCustom(CustomMiniWorldEnv):
     def _gen_world(self):
         ## Easier for all coords to be positive (for info tracking)
         # Top-left room
-        room0 = self.add_rect_room(min_x=0, max_x=6, min_z=8, max_z=14)
+        room0 = self.add_rect_room(min_x=0, max_x=6, min_z=8, max_z=14, wall_tex="brick_wall")
         # Top-right room
-        room1 = self.add_rect_room(min_x=8, max_x=14, min_z=8, max_z=14)
+        room1 = self.add_rect_room(min_x=8, max_x=14, min_z=8, max_z=14, wall_tex='lava') # floor_tex="grass")
         # Bottom-right room
-        room2 = self.add_rect_room(min_x=8, max_x=14, min_z=0, max_z=6)
+        room2 = self.add_rect_room(min_x=8, max_x=14, min_z=0, max_z=6, wall_tex="wood")
         # Bottom-left room
         room3 = self.add_rect_room(min_x=0, max_x=6, min_z=0, max_z=6)
 
@@ -277,7 +278,7 @@ class FourRoomsCustom(CustomMiniWorldEnv):
         self.connect_rooms(room3, room0, min_x=2, max_x=4, max_y=2.2)
 
         self.init_rollout_objects()
-        self.goal_object = self.goal_controller.get_init_goal().minigrid_object # TODO: this is bad
+        # self.goal_object = self.goal_controller.get_init_goal().minigrid_object # TODO: this is bad
         self.goal_controller.verify_object_dict()
         # self.box = self.place_entity(Box(color="red"))
 
@@ -287,18 +288,18 @@ class FourRoomsCustom(CustomMiniWorldEnv):
     def get_init_object_info(self):
         # store list
         object_dict = {
-                    "green ball": GoalObj("green", "ball", (0.5, 8.5), {'pos': (2, 0.0, 10), 'dir': 2.3}), # room 0
+                    "cone": GoalObj(None, "mesh-cone", (0.5, 8.5), {'pos': (2, 0.0, 10), 'dir': 2.4}, plot_color='orange'), # room 0
                     "red key": GoalObj("red", "key", (5.5, 13.5), {'pos': (4, 0.0, 12), 'dir': 5.5}), # room 0
                     "blue box": GoalObj("blue", "box", (8.5, 8.5), {'pos': (10, 0.0, 10), 'dir': 2.35}), # room 1
-                    "cone": GoalObj(None, "mesh-cone", (13.5, 13.5), {'pos': (12, 0.0, 12), 'dir': 5.5}), # room 1
-                    "duckie": GoalObj(None, "mesh-duckie", (8.5, 0.5), {'pos': (9, 0.0, 3), 'dir': 1.57}), # room 2
-                    "office_chair": GoalObj(None, "mesh-office_chair", (13, 5), {'pos': (12, 0.0, 4), 'dir': 5.5}), # room 2
-                    "barrel": GoalObj(None, "mesh-barrel", (0.5, 0.5), {'pos': (2, 0.0, 2), 'dir': 2.35}), # room 3
-                    "office_desk": GoalObj(None, "mesh-office_desk", (5.5, 5.5), {'pos': (4, 0.0, 4), 'dir': 5.5}), # room 3
+                    "green ball": GoalObj("green", "ball", (13.5, 13.5), {'pos': (12, 0.0, 12), 'dir': 5.5}), # room 1
+                    "duckie": GoalObj(None, "mesh-duckie", (8.5, 0.5), {'pos': (9, 0.0, 3), 'dir': 1.57}, plot_color='yellow'), # room 2
+                    "office_chair": GoalObj(None, "mesh-office_chair", (13, 5), {'pos': (12, 0.0, 4), 'dir': 5.5}, plot_color='darkred'), # room 2
+                    "barrel": GoalObj(None, "mesh-barrel", (0.5, 0.5), {'pos': (2, 0.0, 2), 'dir': 2.35}, "c"), # room 3
+                    "office_desk": GoalObj(None, "mesh-office_desk", (5.5, 5.5), {'pos': (4, 0.0, 4), 'dir': 5.5}, plot_color='brown'), # room 3
                     }
-        object_dict["empty"] = GoalObj("empty", "empty", (self.init_agent_pos[0], self.init_agent_pos[2]), {'pos': self.init_agent_pos, 'dir': 0})
+        object_dict["empty"] = GoalObj("empty", "empty", (11, 11), {'pos': (11, 0, 11), 'dir': 0})
         # set init goal
-        init_goal = "green ball"
+        init_goal = "green ball" # green circle = hard, red key = medium
         eval_goals = [
                 "green ball",
                 "blue box",
