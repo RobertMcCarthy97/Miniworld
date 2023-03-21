@@ -94,8 +94,8 @@ class OneRoomCustom(MiniWorldEnv, utils.EzPickle):
         self.max_dist_to_goal = np.sqrt(2 * (self.size - 2)**2)
         self.coord_goal_space = spaces.Box(low=np.array([1, 1]), high=np.array([self.size-1, self.size-1]), dtype=np.int64)
         # TODO: fix this as bounds may be too tight/small
-        self.env_rows = self.size # self.num_rows * (self.room_size-1)
-        self.env_cols = self.size # self.num_cols * (self.room_size-1)
+        self.env_rows = self.size + 1 # self.num_rows * (self.room_size-1)
+        self.env_cols = self.size + 1 # self.num_cols * (self.room_size-1)
 
     def _gen_world(self):
         self.add_rect_room(min_x=0, max_x=self.size, min_z=0, max_z=self.size)
