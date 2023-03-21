@@ -66,7 +66,7 @@ def step(action):
 
     if termination or truncation:
         print("done!")
-        env.reset()
+        # env.reset()
 
     env.render()
 
