@@ -255,8 +255,9 @@ class FourRoomsCustom(CustomMiniWorldEnv):
 
     """
 
-    def __init__(self, size=10, max_episode_steps=250, obs_width=160, obs_height=120, **kwargs):
+    def __init__(self, size=10, max_episode_steps=100, random_init=False, obs_width=160, obs_height=120, **kwargs):
         self.init_agent_pos = np.array([3, 0.0, 3])
+        self.random_init = random_init
         
         super().__init__(size=size, max_episode_steps=max_episode_steps, obs_width=obs_width, obs_height=obs_height, **kwargs)
 
@@ -281,8 +282,11 @@ class FourRoomsCustom(CustomMiniWorldEnv):
         # self.goal_object = self.goal_controller.get_init_goal().minigrid_object # TODO: this is bad
         self.goal_controller.verify_object_dict()
         # self.box = self.place_entity(Box(color="red"))
-
-        self.place_entity(self.agent, pos=self.init_agent_pos, dir=155*(360/2*math.pi))
+        
+        if self.random_init:
+            self.place_agent()
+        else:
+            self.place_entity(self.agent, pos=self.init_agent_pos, dir=155*(360/2*math.pi))
         
 
     def get_init_object_info(self):
@@ -346,14 +350,19 @@ class OneRoomS6FastCustom(OneRoomS6Custom):
         
 class FourRoomsFastCustom(FourRoomsCustom):
     def __init__(
-        self, max_episode_steps=150, size=10, params=default_params, domain_rand=False, **kwargs
+        self, random_init=False, size=10, params=default_params, domain_rand=False, **kwargs
     ):
+        if random_init:
+            max_episode_steps = 50
+        else:
+            max_episode_steps = 100
 
         super().__init__(
             max_episode_steps=max_episode_steps,
             params=params,
             domain_rand=domain_rand,
             size=size,
+            random_init=random_init,
             **kwargs
         )
         
